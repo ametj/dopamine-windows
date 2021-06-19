@@ -176,7 +176,7 @@ namespace Dopamine.Services.Discord
         /// </summary>
         ~RichPresenceService()
         {
-            this.client.Dispose();
+            this.client?.Dispose();
         }
     }
 }
