@@ -11,6 +11,7 @@ using Dopamine.Services.Entities;
 using Dopamine.Services.Extensions;
 using Prism.Ioc;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -66,29 +67,44 @@ namespace Dopamine.Services.File
             return new Tuple<List<TrackViewModel>, TrackViewModel>(tracks, selectedTrack);
         }
 
-        public async Task<IList<TrackViewModel>> ProcessFilesInDirectoryAsync(string directoryPath)
+        public async Task<IList<TrackViewModel>> ProcessFilesInDirectoryAsync(string directoryPath, bool recursive)
         {
             if (!Directory.Exists(directoryPath))
             {
                 return new List<TrackViewModel>();
             }
 
-            string[] paths = Directory.GetFiles(directoryPath).SortNaturally().ToArray();
-
-            var tracks = new List<TrackViewModel>();
-
-            await Task.Run(async () =>
+            return await Task.Run(async () =>
             {
-                foreach (string path in paths)
-                {
-                    if (FileFormats.IsSupportedAudioFile(path))
-                    {
-                        tracks.Add(await this.CreateTrackAsync(path));
-                    }
-                }
-            });
+                var tracks = new List<TrackViewModel>();
+                var stack = new Stack<string>();
+                var directoryPathToProcess = directoryPath;
 
-            return tracks;
+                while (directoryPathToProcess != null)
+                {
+                    string[] paths = Directory.GetFiles(directoryPathToProcess).SortNaturally().ToArray();
+
+                    foreach (string path in paths)
+                    {
+                        if (FileFormats.IsSupportedAudioFile(path))
+                        {
+                            tracks.Add(await this.CreateTrackAsync(path));
+                        }
+                    }
+
+                    if (recursive)
+                    {
+                        string[] directories = Directory.GetDirectories(directoryPathToProcess);
+                        foreach (string directory in directories.Reverse())
+                        {
+                            stack.Push(directory);
+                        }
+                    }
+
+                    directoryPathToProcess = stack.Count > 0 ? stack.Pop() : null;
+                }
+                return tracks;
+            });
         }
 
         public async Task<IList<TrackViewModel>> ProcessFilesAsync(IList<string> paths, bool processPlaylistFiles)

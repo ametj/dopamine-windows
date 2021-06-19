@@ -10,6 +10,7 @@ using Prism.Commands;
 using Prism.Events;
 using Prism.Ioc;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -26,11 +27,25 @@ namespace Dopamine.ViewModels.FullPlayer.Collection
         private double leftPaneWidthPercent;
         private ObservableCollection<FolderViewModel> folders;
         private ObservableCollection<SubfolderViewModel> subfolders;
+        private IList<SubfolderViewModel> selectedSubfolders;
+        private IList<TrackViewModel> recursiveFolderTrackList;
         private FolderViewModel selectedFolder;
         private string activeSubfolderPath;
         private ObservableCollection<SubfolderBreadCrumbViewModel> subfolderBreadCrumbs;
+        // TODO: make setting for recursive
+        private bool recursive = true;
 
         public DelegateCommand<string> JumpSubfolderCommand { get; set; }
+
+        public DelegateCommand<object> SelectedSubfoldersCommand { get; set; }
+
+        public DelegateCommand<string> AddFolderTracksToPlaylistCommand { get; set; }
+
+        public DelegateCommand AddFolderTracksToNowPlayingCommand { get; set; }
+
+        public DelegateCommand PlaySelectedFolderCommand { get; set; }
+
+        public DelegateCommand PlayNextFolderCommand { get; set; }
 
         public ObservableCollection<SubfolderBreadCrumbViewModel> SubfolderBreadCrumbs
         {
@@ -60,6 +75,12 @@ namespace Dopamine.ViewModels.FullPlayer.Collection
             set { SetProperty<ObservableCollection<SubfolderViewModel>>(ref this.subfolders, value); }
         }
 
+        public IList<SubfolderViewModel> SelectedSubfolders
+        {
+            get { return this.selectedSubfolders; }
+            set { SetProperty<IList<SubfolderViewModel>>(ref this.selectedSubfolders, value); }
+        }
+
         public FolderViewModel SelectedFolder
         {
             get { return this.selectedFolder; }
@@ -81,6 +102,11 @@ namespace Dopamine.ViewModels.FullPlayer.Collection
 
             // Commands
             this.JumpSubfolderCommand = new DelegateCommand<string>((subfolderPath) => this.GetSubfoldersAsync(new SubfolderViewModel(subfolderPath, false)));
+            this.SelectedSubfoldersCommand = new DelegateCommand<object>(async (parameter) => await this.SelectedSubfoldersHandlerAsync(parameter));
+            this.AddFolderTracksToNowPlayingCommand = new DelegateCommand(async () => this.AddTracksToNowPlayingAsync(await this.GetTracksAsync(this.SelectedSubfolders)));
+            this.AddFolderTracksToPlaylistCommand = new DelegateCommand<string>(async (playlistName) => await this.AddTracksToPlaylistAsync(playlistName, await this.GetTracksAsync(this.SelectedSubfolders)));
+            this.PlaySelectedFolderCommand = new DelegateCommand(async () => this.PlaySelectedAsync(await this.GetTracksAsync(this.SelectedSubfolders)));
+            this.PlayNextFolderCommand = new DelegateCommand(async () => this.PlayNextAsync(await this.GetTracksAsync(this.SelectedSubfolders)));
 
             // Load settings
             this.LeftPaneWidthPercent = SettingsClient.Get<int>("ColumnWidths", "FoldersLeftPaneWidthPercent");
@@ -109,6 +135,7 @@ namespace Dopamine.ViewModels.FullPlayer.Collection
             this.folders = null;
             this.Subfolders = null;
             this.SubfolderBreadCrumbs = null;
+            this.recursiveFolderTrackList = null;
         }
 
         private async Task GetFoldersAsync()
@@ -130,15 +157,62 @@ namespace Dopamine.ViewModels.FullPlayer.Collection
                 this.Subfolders = new ObservableCollection<SubfolderViewModel>(await this.foldersService.GetSubfoldersAsync(this.selectedFolder, activeSubfolder));
                 this.activeSubfolderPath = this.subfolders.Count > 0 && this.subfolders.Any(x => x.IsGoToParent) ? this.subfolders.Where(x => x.IsGoToParent).First().Path : this.selectedFolder.Path;
                 this.SubfolderBreadCrumbs = new ObservableCollection<SubfolderBreadCrumbViewModel>(this.foldersService.GetSubfolderBreadCrumbs(this.selectedFolder, this.activeSubfolderPath));
-                await this.GetTracksAsync();
+
+                Task.Run(async () =>
+                {
+                    if (this.recursive && activeSubfolder == null)
+                        this.recursiveFolderTrackList = await GetTracksFromDirectoryAsync(this.selectedFolder.Path);
+                        
+                    await this.GetTracksAsync();
+                });
                 await this.foldersService.SetPlayingSubFolderAsync(this.Subfolders);
+            }
+        }
+
+        private async Task SelectedSubfoldersHandlerAsync(object parameter)
+        {
+            if (parameter != null)
+            {
+                this.SelectedSubfolders = ((IList)parameter).Cast<SubfolderViewModel>().ToList();
             }
         }
 
         private async Task GetTracksAsync()
         {
-            IList<TrackViewModel> tracks = await this.fileService.ProcessFilesInDirectoryAsync(this.activeSubfolderPath);
+            IList<TrackViewModel> tracks = await GetTracksAsync(this.activeSubfolderPath);
             await this.GetTracksCommonAsync(tracks, TrackOrder.None);
+        }
+
+        private async Task<IList<TrackViewModel>> GetTracksAsync(string path)
+        {
+            return this.recursive
+                ? this.FilterFolderTrackList(path)
+                : await GetTracksFromDirectoryAsync(path);
+        }
+
+        private IList<TrackViewModel> FilterFolderTrackList(string path)
+        {
+            if (this.recursiveFolderTrackList == null) return new List<TrackViewModel>();
+
+            return this.activeSubfolderPath == this.selectedFolder.Path
+                ? this.recursiveFolderTrackList
+                : this.recursiveFolderTrackList.Where(t => t.Path.StartsWith(path)).ToList();
+        }
+
+        private async Task<IList<TrackViewModel>> GetTracksAsync(IList<SubfolderViewModel> folders)
+        {
+            var tracks = new List<TrackViewModel>();
+
+            foreach (var folder in folders)
+            {
+                tracks.AddRange(await GetTracksAsync(folder.Path));
+            }
+            return tracks;
+        }
+
+        private async Task<IList<TrackViewModel>> GetTracksFromDirectoryAsync(string path)
+        {
+            return await this.fileService.ProcessFilesInDirectoryAsync(path, this.recursive);
         }
 
         protected async override Task FillListsAsync()

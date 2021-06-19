@@ -14,7 +14,7 @@ namespace Dopamine.Services.File
         [OperationContract()]
         void ProcessArguments(string[] iArgs);
 
-        Task<IList<TrackViewModel>> ProcessFilesInDirectoryAsync(string directoryPath);
+        Task<IList<TrackViewModel>> ProcessFilesInDirectoryAsync(string directoryPath, bool recursive);
 
         Task<IList<TrackViewModel>> ProcessFilesAsync(IList<string> filenames, bool processPlaylistFiles);
 

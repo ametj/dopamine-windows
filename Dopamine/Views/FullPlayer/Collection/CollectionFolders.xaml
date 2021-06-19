@@ -49,7 +49,12 @@
                                            Style="{StaticResource ListBoxSubfolders}"
                                            ItemsSource="{Binding Subfolders}"
                                            BorderThickness="0"
-                                           SelectionMode="Single">
+                                           SelectionMode="Extended">
+                        <i:Interaction.Triggers>
+                            <i:EventTrigger EventName="SelectionChanged">
+                                <i:InvokeCommandAction Command="{Binding SelectedSubfoldersCommand}" CommandParameter="{Binding RelativeSource={RelativeSource AncestorType={x:Type ListBox}}, Path=SelectedItems}"/>
+                            </i:EventTrigger>
+                        </i:Interaction.Triggers>
                     </dc:MultiSelectListBox>
                 </DockPanel>
             </Border>

@@ -92,9 +92,9 @@ namespace Dopamine.ViewModels.Common.Base
             // Commands
             this.ToggleTrackOrderCommand = new DelegateCommand(() => this.ToggleTrackOrder());
             this.AddTracksToPlaylistCommand = new DelegateCommand<string>(async (playlistName) => await this.AddTracksToPlaylistAsync(playlistName, this.SelectedTracks));
-            this.PlaySelectedCommand = new DelegateCommand(async () => await this.PlaySelectedAsync());
-            this.PlayNextCommand = new DelegateCommand(async () => await this.PlayNextAsync());
-            this.AddTracksToNowPlayingCommand = new DelegateCommand(async () => await this.AddTracksToNowPlayingAsync());
+            this.PlaySelectedCommand = new DelegateCommand(async () => await this.PlaySelectedAsync(this.selectedTracks));
+            this.PlayNextCommand = new DelegateCommand(async () => await this.PlayNextAsync(this.selectedTracks));
+            this.AddTracksToNowPlayingCommand = new DelegateCommand(async () => await this.AddTracksToNowPlayingAsync(this.selectedTracks));
             this.RemoveSelectedTracksFromDiskCommand = new DelegateCommand(async () => await this.RemoveTracksFromDiskAsync(this.SelectedTracks), () => !this.IsIndexing);
 
             // Settings changed
@@ -367,9 +367,9 @@ namespace Dopamine.ViewModels.Common.Base
             RaisePropertyChanged(nameof(this.TotalSizeInformation));
         }
 
-        protected async Task PlaySelectedAsync()
+        protected async Task PlaySelectedAsync(IList<TrackViewModel> tracks)
         {
-            var result = await this.playbackService.PlaySelectedAsync(this.selectedTracks);
+            var result = await this.playbackService.PlaySelectedAsync(tracks);
 
             if (!result)
             {
@@ -377,11 +377,9 @@ namespace Dopamine.ViewModels.Common.Base
             }
         }
 
-        protected async Task PlayNextAsync()
+        protected async Task PlayNextAsync(IList<TrackViewModel> tracks)
         {
-            IList<TrackViewModel> selectedTracks = this.SelectedTracks;
-
-            EnqueueResult result = await this.playbackService.AddToQueueNextAsync(selectedTracks);
+            EnqueueResult result = await this.playbackService.AddToQueueNextAsync(tracks);
 
             if (!result.IsSuccess)
             {
@@ -389,11 +387,9 @@ namespace Dopamine.ViewModels.Common.Base
             }
         }
 
-        protected async Task AddTracksToNowPlayingAsync()
+        protected async Task AddTracksToNowPlayingAsync(IList<TrackViewModel> tracks)
         {
-            IList<TrackViewModel> selectedTracks = this.SelectedTracks;
-
-            EnqueueResult result = await this.playbackService.AddToQueueAsync(selectedTracks);
+            EnqueueResult result = await this.playbackService.AddToQueueAsync(tracks);
 
             if (!result.IsSuccess)
             {

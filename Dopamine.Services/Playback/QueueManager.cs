@@ -216,7 +216,7 @@ namespace Dopamine.Services.Playback
                                     nextTrack = this.queue[this.playbackOrder[currentTrackIndex + increment]];
 
                                     // HACK: voids getting stuck on the same track when the playlist contains the same track multiple times
-                                    while (this.currentTrack.Path.Equals(nextTrack.Path))
+                                    while (this.currentTrack != null && this.currentTrack.Path.Equals(nextTrack.Path))
                                     {
                                         increment++;
                                         nextTrack = this.queue[this.playbackOrder[currentTrackIndex + increment]];
